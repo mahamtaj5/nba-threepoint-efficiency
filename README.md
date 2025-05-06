@@ -8,3 +8,5 @@ This project explores whether three-point shooting efficiency (3P%) predicts NBA
 
 [View Project Website](https://mahamtaj5.github.io/nba-threepoint-efficiency/)  
 
+[View Slide Deck] (https://mahamtaj5.github.io/nba-threepoint-efficiency/slides.pdf)
+
