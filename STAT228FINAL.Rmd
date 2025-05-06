@@ -1,0 +1,147 @@
+---
+title: "The Three-Point Revolution: Analyzing the NBA’s Offensive Shift from 2003 to 2023"
+author: "Maham Taj"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(lubridate)
+```
+
+# Introduction
+
+The NBA introduced the three-point line in the 1979–80 season, but it was rarely used during its early years. For a long time, it was considered a novelty rather than a core part of team strategy.
+
+Starting in the early 2000s, however, teams began using the three-point shot more consistently and effectively. This shift set the stage for what many now call the "three-point revolution",  a complete transformation in how NBA offenses are designed and executed.
+
+In this project, I explore how **three-point shooting efficiency (3P%)** has evolved between 2003 and 2023 and examine whether higher three-point efficiency is associated with greater team success, measured by win percentage.
+
+We use the [NBA Games Stats Kaggle dataset](https://www.kaggle.com/datasets/nathanlauga/nba-games) covering regular-season games from 2003–2023. This dataset includes:
+
+- **FG3_PCT**: 3-point field goal percentage (efficiency)
+- **PTS**: Total points scored per game
+- **HOME_TEAM_WINS**: Home team win indicator
+
+Other datasets (e.g., player-level stats) were excluded for focus and simplicity.
+
+**Glossary for non-NBA readers:**
+
+- **FG3_PCT** = 3-Point Field Goal Accuracy
+- **PTS** = Points scored
+- **WL** = Win or Loss outcome
+
+# Data Import
+
+```{r}
+games <- read_csv("games.csv")
+glimpse(games)
+```
+
+# Data Wrangling
+
+We reshape the dataset to treat home and away teams separately, allowing team-level analysis regardless of game location.
+
+```{r}
+games_long <- games %>%
+  select(SEASON, GAME_ID, HOME_TEAM_WINS,
+         TEAM_ID_home, PTS_home, FG3_PCT_home,
+         TEAM_ID_away, PTS_away, FG3_PCT_away) %>%
+  pivot_longer(
+    cols = c(TEAM_ID_home, PTS_home, FG3_PCT_home,
+             TEAM_ID_away, PTS_away, FG3_PCT_away),
+    names_to = c(".value", "home_away"),
+    names_pattern = "(.*)_(home|away)"
+  ) %>%
+  mutate(
+    win = case_when(
+      home_away == "home" & HOME_TEAM_WINS == 1 ~ 1,
+      home_away == "away" & HOME_TEAM_WINS == 0 ~ 1,
+      TRUE ~ 0
+    )
+  )
+glimpse(games_long)
+```
+
+We then summarize at the team-season level to analyze season averages.
+
+```{r summarize-season}
+nba_clean <- games_long %>%
+  group_by(SEASON, TEAM_ID) %>%
+  summarise(
+    avg_fg3_pct = mean(FG3_PCT, na.rm = TRUE),
+    win_rate = mean(win),
+    avg_pts = mean(PTS, na.rm = TRUE),
+    games_played = n()
+  ) %>%
+  filter(games_played >= 30)  # Exclude teams with fewer than 30 games for stability
+
+glimpse(nba_clean)
+```
+
+# Data Visualization
+
+## Average 3-Point Percentage Over Time
+
+```{r viz-3p-over-time}
+nba_clean %>%
+  group_by(SEASON) %>%
+  summarise(avg_3p_pct = mean(avg_fg3_pct)) %>%
+  ggplot(aes(x = SEASON, y = avg_3p_pct)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 2) +
+  labs(title = "Average 3-Point Percentage in the NBA (2003–2023)",
+       x = "Season", y = "3-Point Percentage") +
+  theme_minimal()
+```
+
+**Interpretation:**  
+Three-point shooting efficiency improved from roughly 32% in 2003 to approximately 36% by 2023. This gradual rise highlights a strategic league-wide shift toward emphasizing perimeter shooting.
+
+## 3-Point Percentage vs. Win Rate
+
+```{r}
+nba_clean %>%
+  ggplot(aes(x = avg_fg3_pct, y = win_rate)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", se = FALSE, color = "green") +
+  labs(title = "Relationship Between 3-Point Percentage and Win Rate",
+       x = "Average 3-Point Percentage",
+       y = "Win Rate") +
+  theme_minimal()
+```
+
+**Interpretation:**  
+There is a clear positive relationship: teams shooting above league-average three-point percentages often enjoy win rates above 50%. This supports the notion that shooting efficiency from beyond the arc has become a critical driver of team success.
+
+# Modeling / Analysis
+
+We fit a simple linear regression model to assess whether three-point percentage predicts win rate.
+
+```{r}
+model <- lm(win_rate ~ avg_fg3_pct, data = nba_clean)
+summary(model)
+```
+
+**Interpretation of Results:**  
+The model shows that each 1% improvement in 3P% is associated with approximately a 3.6% increase in win rate (**β = 3.60, p < 0.001**). While three-point efficiency explains about 23% of the variation in win rates (R-squared = 0.23), other factors such as defense, turnovers, and rebounds also play important roles.
+
+# Conclusion
+
+This project confirms that three-point shooting efficiency has steadily risen over the past two decades and is significantly associated with team success. Teams emphasizing perimeter efficiency have gained a strategic advantage in the modern NBA landscape.
+
+**Limitations:**
+
+- Three-point attempt volume (3PA) was not included.
+- Other performance factors like defensive stats and turnovers were not analyzed.
+
+**Future Directions:**
+
+- Incorporate three-point attempt rates to distinguish volume from efficiency.
+- Expand analysis to include defensive and rebounding metrics for a fuller model of success factors.
+
+# References
+
+- Lauga, N. (2021). *NBA Games Stats*. Kaggle. Retrieved from: [https://www.kaggle.com/datasets/nathanlauga/nba-games-stats](https://www.kaggle.com/datasets/nathanlauga/nba-games-stats)
+
